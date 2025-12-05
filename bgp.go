@@ -99,16 +99,16 @@ NextPath:
 			switch attr := attr.(type) {
 			case *bgp.PathAttributeCommunities:
 				communities = attr.Value
-			case *bgp.PathAttributeAs4Path:
-				asPath = lo.FlatMap(attr.Value, func(path *bgp.As4PathParam, _ int) []uint32 {
-					return path.AS
+			case *bgp.PathAttributeAsPath:
+				asPath = lo.FlatMap(attr.Value, func(path bgp.AsPathParamInterface, _ int) []uint32 {
+					return path.GetAS()
 				})
 			}
 		}
 
 		for i, route := range wanted {
 			routeASPath := slices.Repeat([]uint32{b.cfg.ASN}, route.ASPrependN)
-			if route.Dest != nlri.Prefix || !slices.Equal(route.Communities, communities) || slices.Equal(routeASPath, asPath) {
+			if route.Dest != nlri.Prefix || !slices.Equal(route.Communities, communities) || !slices.Equal(routeASPath, asPath) {
 				continue
 			}
 
@@ -136,7 +136,7 @@ NextPath:
 		attrs := []bgp.PathAttributeInterface{
 			bgp.NewPathAttributeCommunities(route.Communities),
 			bgp.NewPathAttributeOrigin(0),
-			bgp.NewPathAttributeAs4Path([]*bgp.As4PathParam{bgp.NewAs4PathParam(2, slices.Repeat([]uint32{b.cfg.ASN}, route.ASPrependN))}),
+			bgp.NewPathAttributeAsPath([]bgp.AsPathParamInterface{bgp.NewAs4PathParam(2, slices.Repeat([]uint32{b.cfg.ASN}, route.ASPrependN))}),
 		}
 
 		if route.Dest.Addr().Is6() {
