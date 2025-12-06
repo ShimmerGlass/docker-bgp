@@ -140,11 +140,19 @@ NextPath:
 		}
 
 		if route.Dest.Addr().Is6() {
+			if !b.cfg.NexthopV6.IsValid() {
+				slog.Error("no BGPVIP_BGP_NEXTHOP_V6 configured")
+				continue
+			}
 			attrs = append(attrs,
 				lo.Must(bgp.NewPathAttributeNextHop(b.cfg.NexthopV6)),
 				lo.Must(bgp.NewPathAttributeMpReachNLRI(bgp.RF_IPv6_UC, []bgp.PathNLRI{{NLRI: nlri}}, b.cfg.NexthopV6)),
 			)
 		} else {
+			if !b.cfg.NexthopV4.IsValid() {
+				slog.Error("no BGPVIP_BGP_NEXTHOP_V4 configured")
+				continue
+			}
 			attrs = append(attrs,
 				lo.Must(bgp.NewPathAttributeNextHop(b.cfg.NexthopV4)),
 			)
