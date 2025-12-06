@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,21 +26,25 @@ var watchEvents = map[events.Action]bool{
 }
 
 type Docker struct {
+	interval time.Duration
+
 	docker *docker.Client
+
 	up     chan struct{}
 	routes chan []Route
 }
 
-func NewDocker() (*Docker, error) {
+func NewDocker(interval time.Duration) (*Docker, error) {
 	cli, err := docker.New(docker.FromEnv)
 	if err != nil {
 		return nil, err
 	}
 
 	d := &Docker{
-		docker: cli,
-		up:     make(chan struct{}, 1),
-		routes: make(chan []Route),
+		interval: interval,
+		docker:   cli,
+		up:       make(chan struct{}, 1),
+		routes:   make(chan []Route),
 	}
 
 	d.watch()
@@ -54,7 +59,7 @@ func (d *Docker) RouteUps() <-chan []Route {
 }
 
 func (d *Docker) timer() {
-	t := time.Tick(time.Minute)
+	t := time.Tick(d.interval)
 	go func() {
 		for ; ; <-t {
 			d.notify()
@@ -165,13 +170,21 @@ func (d *Docker) containerRoutes(ctx context.Context, ctr container.Summary) ([]
 			return nil, fmt.Errorf("bgpAsPrependN: %w", err)
 		}
 	}
+	networks := []string{}
+	if v, ok := ctr.Labels["bgpNetworks"]; ok {
+		networks = strings.Split(v, ",")
+	}
 
 	inspect, err := d.docker.ContainerInspect(ctx, ctr.ID, docker.ContainerInspectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("docker container %s inspect: %w", ctr.ID, err)
 	}
 
-	for _, net := range inspect.Container.NetworkSettings.Networks {
+	for netName, net := range inspect.Container.NetworkSettings.Networks {
+		if len(networks) > 0 && !slices.Contains(networks, netName) {
+			continue
+		}
+
 		if net.IPAddress.IsValid() {
 			res = append(res, Route{
 				Dest:        lo.Must(net.IPAddress.Prefix(net.IPAddress.BitLen())),

@@ -25,7 +25,7 @@ func run() error {
 		return err
 	}
 
-	docker, err := NewDocker()
+	docker, err := NewDocker(cfg.Interval)
 	if err != nil {
 		return err
 	}
